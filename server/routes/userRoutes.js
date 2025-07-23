@@ -1,15 +1,21 @@
-// routes/userRoutes.js
 const express = require('express');
 const router = express.Router();
-const { registerUser, loginUser, verifyOtp } = require('../controllers/userController');
+const protect = require('../middleware/authMiddleware');
+const {
+  sendOtp,
+  registerUser,
+  loginUser,
+  sendResetOtp,
+  verifyResetOtp,
+  resetPassword,
+} = require('../controllers/userController');
 
-// Register
+router.post('/send-otp', sendOtp);
 router.post('/register', registerUser);
-
-// Verify OTP
-router.post('/verify-otp', verifyOtp);
-
-// Login
 router.post('/login', loginUser);
+router.post('/forgot-password', sendResetOtp);
+router.post('/verify-reset-otp', verifyResetOtp);
+router.post('/reset-password', resetPassword);
+router.get('/me', protect, (req, res) => res.status(200).json({ user: req.user }));
 
 module.exports = router;

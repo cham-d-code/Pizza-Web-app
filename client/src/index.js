@@ -1,9 +1,11 @@
-import React from 'react'; // Required to write JSX
-import ReactDOM from 'react-dom/client'; // For rendering React in the DOM
-import App from './App'; // Import the App component
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css'; // ✅ This line must exist
+import App from './App';
 
-// Get the root element in public/index.html and attach React app to it
 const root = ReactDOM.createRoot(document.getElementById('root'));
-
-// Render the App component inside the root element
-root.render(<App />);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
