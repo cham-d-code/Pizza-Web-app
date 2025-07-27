@@ -6,6 +6,7 @@ const SignUp = () => {
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   // ✅ Validation function
@@ -36,40 +37,58 @@ const SignUp = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ Submit handler
-  const handleSubmit = async (e) => {
+  // ✅ Send OTP (instead of register directly)
+  const handleSendOtp = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
     try {
-      const response = await fetch('/api/users/register', {
+      setLoading(true);
+      const contact = emailOrPhone.trim();
+
+      // 🔥 FIXED: Use full backend URL instead of relative URL
+      const response = await fetch('http://localhost:5000/api/users/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: fullName,
-          password,
-          email: emailOrPhone.includes('@') ? emailOrPhone : undefined,
-          phone: !emailOrPhone.includes('@') ? emailOrPhone : undefined,
-        }),
+        body: JSON.stringify({ contact }),
       });
+
+      // Add better error handling for HTML responses
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('❌ Server returned HTML instead of JSON:', textResponse);
+        setErrors({ api: 'Server error. Make sure backend is running on port 5000.' });
+        setLoading(false);
+        return;
+      }
 
       const data = await response.json();
 
       if (!response.ok) {
-        setErrors({ api: data.message || 'Server error' });
+        setErrors({ api: data?.message || 'Failed to send OTP' });
+        setLoading(false);
         return;
       }
 
-      // ✅ Store data for OTP verification
-      localStorage.setItem('signupName', fullName);
+      // ✅ Save to localStorage for OTP verify + register later
+      localStorage.setItem('signupName', fullName.trim());
       localStorage.setItem('signupPassword', password);
-      localStorage.setItem('otpContact', emailOrPhone);
-      localStorage.setItem('otpPurpose', 'signup');
-      console.log(data)
+      localStorage.setItem('otpContact', contact);
+      localStorage.setItem('otpPurpose', 'signup'); // Set purpose as 'signup'
 
       navigate('/otp-verification');
     } catch (error) {
-      setErrors({ api: 'Server error. Please try again later.' });
+      console.error('Send OTP error:', error);
+      
+      // Better error handling
+      if (error.message.includes('fetch')) {
+        setErrors({ api: 'Cannot connect to server. Make sure backend is running on port 5000.' });
+      } else {
+        setErrors({ api: 'Server error. Please try again later.' });
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -91,7 +110,7 @@ const SignUp = () => {
           <p className="text-red-500 text-center text-sm mb-4">{errors.api}</p>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSendOtp}>
           {/* Full Name */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -101,7 +120,7 @@ const SignUp = () => {
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="Your Name"
+              placeholder="Enter First and Second name"
               className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
             {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>}
@@ -116,7 +135,7 @@ const SignUp = () => {
               type="text"
               value={emailOrPhone}
               onChange={(e) => setEmailOrPhone(e.target.value)}
-              placeholder="Enter email or phone"
+              placeholder="Enter email or phone(with +94)"
               className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
             {errors.emailOrPhone && (
@@ -133,7 +152,7 @@ const SignUp = () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create strong password"
+              placeholder="Enter a strong password"
               className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
             {errors.password && (
@@ -144,8 +163,9 @@ const SignUp = () => {
           <button
             type="submit"
             className="w-full bg-orange-400 hover:bg-orange-500 text-white font-semibold py-2 px-4 rounded transition"
+            disabled={loading}
           >
-            Sign Up
+            {loading ? 'Sending OTP...' : 'Sign Up'}
           </button>
         </form>
 
@@ -154,7 +174,7 @@ const SignUp = () => {
           Already have an account?{' '}
           <span
             className="text-orange-500 hover:underline cursor-pointer"
-            onClick={() => navigate('/Signin')}
+            onClick={() => navigate('/signin')}
           >
             Sign In
           </span>

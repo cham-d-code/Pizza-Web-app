@@ -1,21 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const protect = require('../middleware/authMiddleware');
 const {
-  sendOtp,
   registerUser,
   loginUser,
+  sendOtp,
+  verifyOtp,
   sendResetOtp,
   verifyResetOtp,
-  resetPassword,
+  resetPassword
 } = require('../controllers/userController');
 
-router.post('/send-otp', sendOtp);
+// Existing routes
 router.post('/register', registerUser);
 router.post('/login', loginUser);
-router.post('/forgot-password', sendResetOtp);
+
+// OTP Routes for Signup Flow
+router.post('/send-otp', sendOtp);
+router.post('/verify-otp', verifyOtp);
+
+// OTP Routes for Forgot Password Flow  
+router.post('/send-reset-otp', sendResetOtp);
+router.post('/forgot-password', sendResetOtp); // ADD THIS LINE - alias for forgot-password
 router.post('/verify-reset-otp', verifyResetOtp);
 router.post('/reset-password', resetPassword);
-router.get('/me', protect, (req, res) => res.status(200).json({ user: req.user }));
 
 module.exports = router;
