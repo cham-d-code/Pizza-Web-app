@@ -1,12 +1,46 @@
+// routes/pizzaRoutes.js
 const express = require('express');
 const router = express.Router();
-const { getPizzas, addPizza } = require('../controllers/pizzaController');  // Import controller functions
+const {
+  getAllPizzas,
+  getPizzaById,
+  getFeaturedPizzas,
+  getPizzasByCategory,
+  getCategoryStats,
+  searchPizzas
+} = require('../controllers/pizzaController');
 
-// Define the route to get all pizzas
-router.get('/', getPizzas);  // Calls the getPizzas function when a GET request is made to /api/pizzas
+// IMPORTANT: Order matters! Specific routes MUST come before parameter routes
 
-// Define the route to add a new pizza
-router.post('/', addPizza);  // Calls the addPizza function when a POST request is made to /api/pizzas
+// @route   GET /api/pizzas
+// @desc    Get all pizzas with optional filters
+// @access  Public
+router.get('/', getAllPizzas);
 
-// Export the router so it can be used in server.js
+// @route   GET /api/pizzas/featured
+// @desc    Get featured pizzas
+// @access  Public
+router.get('/featured', getFeaturedPizzas);
+
+// @route   GET /api/pizzas/categories/stats
+// @desc    Get category statistics
+// @access  Public
+router.get('/categories/stats', getCategoryStats);
+
+// @route   GET /api/pizzas/search
+// @desc    Search pizzas
+// @access  Public
+router.get('/search', searchPizzas);
+
+// @route   GET /api/pizzas/category/:category
+// @desc    Get pizzas by category
+// @access  Public
+router.get('/category/:category', getPizzasByCategory);
+
+// MUST BE LAST - catches any remaining paths as IDs
+// @route   GET /api/pizzas/:id
+// @desc    Get single pizza by ID
+// @access  Public
+router.get('/:id', getPizzaById);
+
 module.exports = router;
