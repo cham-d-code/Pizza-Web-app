@@ -6,6 +6,7 @@ const cors = require('cors');
 const userRoutes = require('./routes/userRoutes');
 const pizzaRoutes = require('./routes/pizzaRoutes');
 const cartRoutes = require('./routes/cartRoutes');
+const { orderRoutes, addressRoutes } = require('./routes/orderRoutes');
 
 dotenv.config();
 const app = express();
@@ -21,6 +22,8 @@ app.get('/api/test', (req, res) => {
 app.use('/api/users', userRoutes);
 app.use('/api/pizzas', pizzaRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes); 
+app.use('/api/addresses', addressRoutes);
 
 
 mongoose.connect(process.env.MONGO_URI)
