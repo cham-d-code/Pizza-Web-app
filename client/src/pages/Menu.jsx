@@ -33,14 +33,32 @@ const Menu = () => {
   // Mock user ID for testing
   const userId = 'mock-user-id';
 
+  const sortPizzas = useCallback((pizzaList, sortBy) => {
+    switch (sortBy) {
+      case 'price-low':
+        return pizzaList.sort((a, b) => getPizzaPrice(a) - getPizzaPrice(b));
+      case 'price-high':
+        return pizzaList.sort((a, b) => getPizzaPrice(b) - getPizzaPrice(a));
+      case 'rating':
+        return pizzaList.sort((a, b) => {
+          const aRating = typeof a.rating === 'object' ? a.rating.average || 0 : a.rating || 0;
+          const bRating = typeof b.rating === 'object' ? b.rating.average || 0 : b.rating || 0;
+          return bRating - aRating;
+        });
+      case 'name':
+        return pizzaList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      default:
+        return pizzaList.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+    }
+  }, []);
+
   const fetchPizzas = useCallback(async () => {
+    const baseUrl = 'http://localhost:5000/api/pizzas';
+    const params = new URLSearchParams();
     try {
       setLoading(true);
       setError(null);
       setDebugInfo(null);
-
-      const baseUrl = 'http://localhost:5000/api/pizzas';
-      const params = new URLSearchParams();
 
       if (selectedCategory !== 'All') {
         params.append('category', selectedCategory);
@@ -127,7 +145,7 @@ const Menu = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory, searchQuery, sortBy, priceRange]);
+  }, [selectedCategory, searchQuery, sortBy, priceRange, sortPizzas]);
 
   // Helper function to get pizza price with better logic
   const getPizzaPrice = (pizza) => {
@@ -165,24 +183,6 @@ const Menu = () => {
     fetchPizzas();
   }, [fetchPizzas]);
 
-  const sortPizzas = (pizzaList, sortBy) => {
-    switch (sortBy) {
-      case 'price-low':
-        return pizzaList.sort((a, b) => getPizzaPrice(a) - getPizzaPrice(b));
-      case 'price-high':
-        return pizzaList.sort((a, b) => getPizzaPrice(b) - getPizzaPrice(a));
-      case 'rating':
-        return pizzaList.sort((a, b) => {
-          const aRating = typeof a.rating === 'object' ? a.rating.average || 0 : a.rating || 0;
-          const bRating = typeof b.rating === 'object' ? b.rating.average || 0 : b.rating || 0;
-          return bRating - aRating;
-        });
-      case 'name':
-        return pizzaList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      default:
-        return pizzaList.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-    }
-  };
 
   const addToCart = async (pizza, size = 'Medium') => {
     const cartKey = `${pizza._id}-${size}`;
