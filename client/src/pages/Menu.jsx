@@ -1,374 +1,540 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Star, Heart, ShoppingCart, Plus, Clock, Flame, Leaf, Award } from 'lucide-react';
+import { Search, Filter, Star, Clock, Leaf, Wheat, Heart, ShoppingCart, ChevronLeft, ChevronRight, User, LogOut, Menu, X } from 'lucide-react';
 
-// Add Montserrat font
-const montserratStyle = {
-  fontFamily: '"Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-};
-
-const Menu = () => {
+const PizzaMenu = () => {
   const [pizzas, setPizzas] = useState([]);
+  const [featuredPizzas, setFeaturedPizzas] = useState([]);
+  const [categoryStats, setCategoryStats] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [priceRange, setPriceRange] = useState([0, 5000]);
-  const [sortBy, setSortBy] = useState('popular');
+  const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({});
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Filter states
+  const [filters, setFilters] = useState({
+    category: '',
+    isVegetarian: '',
+    isVegan: '',
+    isGlutenFree: '',
+    minPrice: '',
+    maxPrice: '',
+    search: '',
+    sortBy: 'newest',
+    page: 1,
+    limit: 12
+  });
+
   const [showFilters, setShowFilters] = useState(false);
-  const [favorites, setFavorites] = useState(new Set());
-  const [addingToCart, setAddingToCart] = useState(new Set());
+  const [activeView, setActiveView] = useState('all'); // 'all', 'featured', 'category'
 
-  // Categories from your backend
-  const categories = ['All', 'Vegetarian', 'Non-Vegetarian', 'Vegan', 'Gluten-Free', 'Spicy', 'Gourmet'];
+  // API base URL - adjust this to match your backend
+  const API_BASE = 'http://localhost:5000/api';
 
-  // Mock user ID for testing
-  const userId = 'mock-user-id';
+  // Mock user state - replace with actual auth logic
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    fetchPizzas();
-  }, [selectedCategory, searchQuery, sortBy]);
+    // Check if user is logged in
+    const token = localStorage.getItem('token');
+    if (token) {
+      // In a real app, you'd validate the token and get user info
+      setUser({ name: 'John Doe', email: 'john@example.com' });
+    }
+  }, []);
+  
 
+  // Fetch pizzas based on current filters
   const fetchPizzas = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      let url = 'http://localhost:5000/api/pizzas';
+      const queryParams = new URLSearchParams();
       
-      // Add category filter
-      if (selectedCategory !== 'All') {
-        url = `http://localhost:5000/api/pizzas/category/${selectedCategory}`;
-      }
-      
-      // Add search query
-      if (searchQuery.trim()) {
-        url = `http://localhost:5000/api/pizzas/search?q=${encodeURIComponent(searchQuery)}`;
-      }
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== '' && value !== null && value !== undefined) {
+          queryParams.append(key, value);
+        }
+      });
 
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        let pizzaList = data.pizzas || data || [];
-        
-        // Apply price filter
-        pizzaList = pizzaList.filter(pizza => {
-          const basePrice = pizza.sizes?.Medium?.price || pizza.basePrice || 0;
-          return basePrice >= priceRange[0] && basePrice <= priceRange[1];
-        });
-        
-        // Apply sorting
-        pizzaList = sortPizzas(pizzaList, sortBy);
-        
-        setPizzas(pizzaList);
+      const response = await fetch(`${API_BASE}/pizzas?${queryParams}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setPizzas(data.data);
+        setPagination(data.pagination);
+      } else {
+        setError(data.message);
       }
-    } catch (error) {
-      console.error('Error fetching pizzas:', error);
+    } catch (err) {
+      setError('Failed to fetch pizzas');
+      console.error('Fetch error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const sortPizzas = (pizzaList, sortBy) => {
-    switch (sortBy) {
-      case 'price-low':
-        return pizzaList.sort((a, b) => (a.sizes?.Medium?.price || a.basePrice || 0) - (b.sizes?.Medium?.price || b.basePrice || 0));
-      case 'price-high':
-        return pizzaList.sort((a, b) => (b.sizes?.Medium?.price || b.basePrice || 0) - (a.sizes?.Medium?.price || a.basePrice || 0));
-      case 'rating':
-        return pizzaList.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-      case 'name':
-        return pizzaList.sort((a, b) => a.name.localeCompare(b.name));
-      default:
-        return pizzaList.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-    }
-  };
-
-  const addToCart = async (pizza, size = 'Medium') => {
-    const cartKey = `${pizza._id}-${size}`;
-    setAddingToCart(prev => new Set(prev).add(cartKey));
-    
+  // Fetch featured pizzas
+  const fetchFeaturedPizzas = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/cart/add', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${userId}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          pizzaId: pizza._id,
-          size: size,
-          quantity: 1
-        })
-      });
-
-      if (response.ok) {
-        // Show success message or update cart count
-        console.log('Added to cart successfully');
+      const response = await fetch(`${API_BASE}/pizzas/featured`);
+      const data = await response.json();
+      if (data.success) {
+        setFeaturedPizzas(data.data);
       }
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-    } finally {
-      setAddingToCart(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(cartKey);
-        return newSet;
-      });
+    } catch (err) {
+      console.error('Featured pizzas error:', err);
     }
   };
 
-  const toggleFavorite = (pizzaId) => {
-    setFavorites(prev => {
-      const newFavorites = new Set(prev);
-      if (newFavorites.has(pizzaId)) {
-        newFavorites.delete(pizzaId);
-      } else {
-        newFavorites.add(pizzaId);
+  // Fetch category stats
+  const fetchCategoryStats = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/pizzas/categories/stats`);
+      const data = await response.json();
+      if (data.success) {
+        setCategoryStats(data.data);
       }
-      return newFavorites;
+    } catch (err) {
+      console.error('Category stats error:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPizzas();
+  }, [filters]);
+
+  useEffect(() => {
+    fetchFeaturedPizzas();
+    fetchCategoryStats();
+  }, []);
+
+  // Handle filter changes
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value,
+      page: 1 // Reset to first page when filters change
+    }));
+  };
+
+  // Handle search
+  const handleSearch = (searchTerm) => {
+    handleFilterChange('search', searchTerm);
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setFilters({
+      category: '',
+      isVegetarian: '',
+      isVegan: '',
+      isGlutenFree: '',
+      minPrice: '',
+      maxPrice: '',
+      search: '',
+      sortBy: 'newest',
+      page: 1,
+      limit: 12
     });
   };
 
-  const PizzaCard = ({ pizza }) => {
-    const basePrice = pizza.sizes?.Medium?.price || pizza.basePrice || 0;
-    const isLoading = addingToCart.has(`${pizza._id}-Medium`);
-    const isFavorite = favorites.has(pizza._id);
-
-    return (
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 group">
-        {/* Pizza Image */}
-        <div className="relative overflow-hidden">
-          <img
-            src={pizza.image || '/api/placeholder/400/300'}
-            alt={pizza.name}
-            className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
-          />
-          
-          {/* Badges */}
-          <div className="absolute top-3 left-3 flex flex-col gap-2">
-            {pizza.featured && (
-              <span className="bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-                <Award className="h-3 w-3" />
-                Featured
-              </span>
-            )}
-            {pizza.isVegetarian && (
-              <span className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-                <Leaf className="h-3 w-3" />
-                Veg
-              </span>
-            )}
-            {pizza.spiceLevel === 'Hot' && (
-              <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-                <Flame className="h-3 w-3" />
-                Spicy
-              </span>
-            )}
-          </div>
-
-          {/* Favorite Button */}
-          <button
-            onClick={() => toggleFavorite(pizza._id)}
-            className="absolute top-3 right-3 bg-white rounded-full p-2 hover:bg-gray-50 transition-colors"
-          >
-            <Heart 
-              className={`h-5 w-5 ${isFavorite ? 'fill-orange-500 text-orange-500' : 'text-gray-400'}`} 
-            />
-          </button>
-
-          {/* Quick Add Button */}
-          <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={() => addToCart(pizza)}
-              disabled={isLoading}
-              className="bg-orange-600 text-white rounded-full p-2 hover:bg-orange-700 transition-colors disabled:opacity-50"
-            >
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-              ) : (
-                <Plus className="h-5 w-5" />
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Pizza Details */}
-        <div className="p-4">
-          <div className="flex items-start justify-between mb-2">
-            <h3 className="text-xl font-bold text-gray-800 group-hover:text-orange-600 transition-colors">
-              {pizza.name}
-            </h3>
-            {pizza.cookTime && (
-              <div className="flex items-center text-gray-500 text-sm">
-                <Clock className="h-4 w-4 mr-1" />
-                {pizza.cookTime}
-              </div>
-            )}
-          </div>
-
-          <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-            {pizza.description}
-          </p>
-
-          {/* Rating */}
-          {pizza.rating && (
-            <div className="flex items-center gap-2 mb-3">
-              <div className="flex items-center">
-                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                <span className="text-sm font-medium text-gray-700 ml-1">
-                  {pizza.rating}
-                </span>
-              </div>
-              <span className="text-gray-400 text-sm">
-                ({pizza.reviews || 0} reviews)
-              </span>
-            </div>
-          )}
-
-          {/* Size Options */}
-          <div className="mb-4">
-            <p className="text-sm font-medium text-gray-700 mb-2">Available Sizes:</p>
-            <div className="flex gap-2">
-              {pizza.sizes && Object.entries(pizza.sizes).map(([size, details]) => (
-                <div key={size} className="text-center">
-                  <div className="bg-gray-100 rounded-lg px-3 py-2">
-                    <p className="text-xs font-medium text-gray-600">{size}</p>
-                    <p className="text-sm font-bold text-orange-600">
-                      LKR {details.price.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Allergens */}
-          {pizza.allergens && pizza.allergens.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs text-gray-500 mb-1">Contains:</p>
-              <div className="flex flex-wrap gap-1">
-                {pizza.allergens.map(allergen => (
-                  <span key={allergen} className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
-                    {allergen}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Add to Cart Button */}
-          <button
-            onClick={() => addToCart(pizza)}
-            disabled={isLoading || !pizza.available}
-            className="w-full bg-orange-600 text-white py-3 rounded-lg font-semibold hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-          >
-            <ShoppingCart className="h-5 w-5" />
-            {isLoading ? 'Adding...' : !pizza.available ? 'Out of Stock' : `Add to Cart - LKR ${basePrice.toLocaleString()}`}
-          </button>
-        </div>
-      </div>
-    );
+  // Handle pagination
+  const handlePageChange = (newPage) => {
+    handleFilterChange('page', newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center" style={montserratStyle}>
-        <div className="bg-white p-8 rounded-lg shadow-md text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-600 mx-auto"></div>
-          <p className="text-gray-600 mt-4 font-medium">Loading our delicious pizzas...</p>
-        </div>
-      </div>
-    );
-  }
+  
 
-  return (
-    <div className="min-h-screen bg-gray-50" style={montserratStyle}>
-      {/* Header */}
-      <div className="bg-white shadow-sm sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-800">Our Menu</h1>
-              <p className="text-gray-600 mt-2">Discover our handcrafted pizzas made with love</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500">Found {pizzas.length} pizzas</p>
-            </div>
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+    window.location.href = '/signin';
+  };
+
+  // Get minimum price from sizes array
+  const getMinPrice = (sizes) => {
+    if (!sizes || sizes.length === 0) return 0;
+    return Math.min(...sizes.map(size => size.price));
+  };
+
+  // Navigation Component
+  const Navigation = () => (
+    <nav className="bg-orange-100 shadow-md relative">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex justify-between items-center h-16">
+          {/* Logo */}
+          <div className="flex items-center">
+            <h1 className="text-3xl font-bold text-orange-500">PizzaZone</h1>
           </div>
 
-          {/* Search and Filters */}
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search Bar */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search for pizzas..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center space-x-12">
+            <a href="/main" className="text-gray-700 hover:text-orange-500 font-semibold text-lg transition">HOME</a>
+            <a href="/menu" className="text-orange-500 font-semibold text-lg">SHOP</a>
+            <a href="/main" className="text-gray-700 hover:text-orange-500 font-semibold text-lg transition">ABOUT US</a>
+            <a href="/main" className="text-gray-700 hover:text-orange-500 font-semibold text-lg transition">CONTACT</a>
+          </div>
+
+          {/* Right Icons */}
+          <div className="hidden md:flex items-center space-x-4">
+            <button className="text-gray-700 hover:text-orange-500 transition">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="/notifications"/>
+              </svg>
+            </button>
+            <button className="text-gray-700 hover:text-orange-500 transition relative">
+              <ShoppingCart size={24} />
+              <span className="absolute -top-2 -right-2 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">0</span>
+            </button>
+            {user ? (
+              <div className="flex items-center space-x-2">
+                <button className="text-gray-700 hover:text-orange-500 transition">
+                  <User size={24} />
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="text-gray-700 hover:text-orange-500 transition"
+                >
+                  <LogOut size={24} />
+                </button>
+              </div>
+            ) : (
+              <button className="text-gray-700 hover:text-orange-500 transition">
+                <User size={24} />
+              </button>
+            )}
+          </div>
+
+          {/* Mobile menu button */}
+          <div className="md:hidden">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="text-gray-700 hover:text-orange-500 transition"
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Navigation */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-orange-200 py-4">
+            <div className="flex flex-col space-y-3">
+              <a href="/" className="text-gray-700 hover:text-orange-500 font-semibold transition px-2 py-1">HOME</a>
+              <a href="/menu" className="text-orange-500 font-semibold px-2 py-1">SHOP</a>
+              <a href="/about" className="text-gray-700 hover:text-orange-500 font-semibold transition px-2 py-1">ABOUT US</a>
+              <a href="/contact" className="text-gray-700 hover:text-orange-500 font-semibold transition px-2 py-1">CONTACT</a>
+              
+              <div className="border-t border-orange-200 pt-3 mt-3">
+                <div className="flex items-center justify-center space-x-6">
+                  <button className="text-gray-700 hover:text-orange-500 transition">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+                    </svg>
+                  </button>
+                  <button className="text-gray-700 hover:text-orange-500 transition relative">
+                    <ShoppingCart size={24} />
+                    <span className="absolute -top-2 -right-2 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">0</span>
+                  </button>
+                  {user ? (
+                    <>
+                      <button className="text-gray-700 hover:text-orange-500 transition">
+                        <User size={24} />
+                      </button>
+                      <button
+                        onClick={handleLogout}
+                        className="text-gray-700 hover:text-orange-500 transition"
+                      >
+                        <LogOut size={24} />
+                      </button>
+                    </>
+                  ) : (
+                    <button className="text-gray-700 hover:text-orange-500 transition">
+                      <User size={24} />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
+          </div>
+        )}
+      </div>
+    </nav>
+  );
 
-            {/* Category Filter */}
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+  // Pizza Card Component
+  const PizzaCard = ({ pizza }) => (
+    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden group bg-opacity-90">
+      <div className="relative">
+        <img
+          src={pizza.image || '/api/placeholder/300/200'}
+          alt={pizza.name}
+          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+        />
+        <div className="absolute top-3 right-3 flex flex-col gap-1">
+          {pizza.isVegetarian && (
+            <span className="bg-green-500 text-white p-1 rounded-full">
+              <Leaf size={12} />
+            </span>
+          )}
+          {pizza.isVegan && (
+            <span className="bg-emerald-500 text-white p-1 rounded-full">
+              <Heart size={12} />
+            </span>
+          )}
+          {pizza.isGlutenFree && (
+            <span className="bg-amber-500 text-white p-1 rounded-full">
+              <Wheat size={12} />
+            </span>
+          )}
+        </div>
+        {pizza.isFeatured && (
+          <div className="absolute top-3 left-3">
+            <span className="bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+              Featured
+            </span>
+          </div>
+        )}
+      </div>
+      
+      <div className="p-4">
+        <div className="flex justify-between items-start mb-2">
+          <h3 className="text-lg font-bold text-gray-800 group-hover:text-orange-500 transition-colors">
+            {pizza.name}
+          </h3>
+          <div className="flex items-center gap-1">
+            <Star size={14} className="text-yellow-400 fill-current" />
+            <span className="text-sm text-gray-600">
+              {pizza.rating?.average?.toFixed(1) || 'N/A'}
+            </span>
+          </div>
+        </div>
+        
+        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+          {pizza.description}
+        </p>
+        
+        <div className="mb-3">
+          <span className="text-xs text-gray-500 font-medium">Ingredients:</span>
+          <p className="text-xs text-gray-600 mt-1">
+            {pizza.ingredients?.join(', ')}
+          </p>
+        </div>
+        
+        <div className="flex flex-wrap gap-1 mb-3">
+          {pizza.tags?.map((tag, index) => (
+            <span key={index} className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs">
+              {tag}
+            </span>
+          ))}
+        </div>
+        
+        <div className="flex justify-between items-center">
+          <div className="flex flex-col">
+            <span className="text-xs text-gray-500">Starting from</span>
+            <span className="text-lg font-bold text-orange-500">
+              ${getMinPrice(pizza.sizes).toFixed(2)}
+            </span>
+          </div>
+          <button className="bg-orange-400 hover:bg-orange-500 text-white px-4 py-2 rounded font-semibold flex items-center gap-2 transition">
+            <ShoppingCart size={16} />
+            Add to Cart
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  
+
+  return (
+    <div className="min-h-screen font-sans" style={{ 
+      background: 'linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8)), url("/bg.jpg")',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundAttachment: 'fixed'
+    }}>
+      {/* Navigation */}
+      <Navigation />
+
+      {/* Header */}
+      <div className="bg-white bg-opacity-90 shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <h1 className="text-3xl font-bold text-gray-800 mb-6">Our Menu</h1>
+          
+          {/* Search Bar */}
+          <div className="relative mb-6">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search pizzas, ingredients, or tags..."
+              className="w-full pl-10 pr-4 py-3 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
+              value={filters.search}
+              onChange={(e) => handleSearch(e.target.value)}
+            />
+          </div>
+
+          {/* View Toggle */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={() => setActiveView('all')}
+              className={`px-4 py-2 rounded font-semibold transition ${
+                activeView === 'all' 
+                  ? 'bg-orange-400 text-white' 
+                  : 'bg-white bg-opacity-90 text-gray-700 hover:bg-orange-100'
+              }`}
             >
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-
-            {/* Sort By */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+              All Pizzas
+            </button>
+            <button
+              onClick={() => setActiveView('featured')}
+              className={`px-4 py-2 rounded font-semibold transition ${
+                activeView === 'featured' 
+                  ? 'bg-orange-400 text-white' 
+                  : 'bg-white bg-opacity-90 text-gray-700 hover:bg-orange-100'
+              }`}
             >
-              <option value="popular">Most Popular</option>
-              <option value="price-low">Price: Low to High</option>
-              <option value="price-high">Price: High to Low</option>
-              <option value="rating">Highest Rated</option>
-              <option value="name">A-Z</option>
-            </select>
+              Featured
+            </button>
+            {categoryStats.map((stat) => (
+              <button
+                key={stat.category}
+                onClick={() => {
+                  setActiveView('category');
+                  handleFilterChange('category', stat.category);
+                }}
+                className={`px-4 py-2 rounded font-semibold transition ${
+                  activeView === 'category' && filters.category === stat.category
+                    ? 'bg-orange-400 text-white' 
+                    : 'bg-white bg-opacity-90 text-gray-700 hover:bg-orange-100'
+                }`}
+              >
+                {stat.category} ({stat.count})
+              </button>
+            ))}
+          </div>
 
-            {/* Filter Toggle */}
+          {/* Filters */}
+          <div className="flex justify-between items-center">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-white bg-opacity-90 hover:bg-orange-100 rounded transition"
             >
-              <Filter className="h-5 w-5" />
+              <Filter size={16} />
               Filters
             </button>
+            
+            <div className="flex items-center gap-4">
+              <select
+                value={filters.sortBy}
+                onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+                className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
+              >
+                <option value="newest">Newest First</option>
+                <option value="name">Name A-Z</option>
+                <option value="price_low">Price: Low to High</option>
+                <option value="price_high">Price: High to Low</option>
+                <option value="rating">Highest Rated</option>
+              </select>
+              
+              {(filters.search || filters.category || filters.isVegetarian || filters.isVegan || filters.isGlutenFree || filters.minPrice || filters.maxPrice) && (
+                <button
+                  onClick={clearFilters}
+                  className="text-orange-500 hover:text-orange-600 font-semibold"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Advanced Filters */}
           {showFilters && (
-            <div className="mt-4 p-4 bg-gray-100 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Price Range */}
+            <div className="mt-4 p-4 bg-white bg-opacity-90 rounded">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price Range: LKR {priceRange[0]} - LKR {priceRange[1]}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category
                   </label>
-                  <div className="flex gap-4">
-                    <input
-                      type="range"
-                      min="0"
-                      max="5000"
-                      step="100"
-                      value={priceRange[0]}
-                      onChange={(e) => setPriceRange([parseInt(e.target.value), priceRange[1]])}
-                      className="flex-1"
-                    />
-                    <input
-                      type="range"
-                      min="0"
-                      max="5000"
-                      step="100"
-                      value={priceRange[1]}
-                      onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value)])}
-                      className="flex-1"
-                    />
+                  <select
+                    value={filters.category}
+                    onChange={(e) => handleFilterChange('category', e.target.value)}
+                    className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  >
+                    <option value="">All Categories</option>
+                    <option value="Vegetarian">Vegetarian</option>
+                    <option value="Non-Vegetarian">Non-Vegetarian</option>
+                    <option value="Vegan">Vegan</option>
+                    <option value="Specialty">Specialty</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Dietary
+                  </label>
+                  <div className="space-y-1">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={filters.isVegetarian === 'true'}
+                        onChange={(e) => handleFilterChange('isVegetarian', e.target.checked ? 'true' : '')}
+                        className="mr-2 accent-orange-400"
+                      />
+                      <span className="text-sm">Vegetarian</span>
+                    </label>
                   </div>
+                </div>
+
+                <div>
+                  <label className="flex items-center mt-6">
+                    <input
+                      type="checkbox"
+                      checked={filters.isVegan === 'true'}
+                      onChange={(e) => handleFilterChange('isVegan', e.target.checked ? 'true' : '')}
+                      className="mr-2 accent-orange-400"
+                    />
+                    <span className="text-sm">Vegan</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="flex items-center mt-6">
+                    <input
+                      type="checkbox"
+                      checked={filters.isGlutenFree === 'true'}
+                      onChange={(e) => handleFilterChange('isGlutenFree', e.target.checked ? 'true' : '')}
+                      className="mr-2 accent-orange-400"
+                    />
+                    <span className="text-sm">Gluten Free</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Min Price
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="$0"
+                    value={filters.minPrice}
+                    onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+                    className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Max Price
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="$50"
+                    value={filters.maxPrice}
+                    onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+                    className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
                 </div>
               </div>
             </div>
@@ -376,47 +542,113 @@ const Menu = () => {
         </div>
       </div>
 
-      {/* Pizza Grid */}
+      {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {pizzas.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="max-w-md mx-auto">
-              <Search className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">No pizzas found</h3>
-              <p className="text-gray-600 mb-4">
-                Try adjusting your search or filters to find what you're looking for.
-              </p>
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setSelectedCategory('All');
-                  setPriceRange([0, 5000]);
-                }}
-                className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors"
-              >
-                Clear Filters
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {pizzas.map(pizza => (
-              <PizzaCard key={pizza._id} pizza={pizza} />
-            ))}
+        {/* Featured Pizzas Section */}
+        {activeView === 'featured' && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Featured Pizzas</h2>
+            {featuredPizzas.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {featuredPizzas.map((pizza) => (
+                  <PizzaCard key={pizza._id} pizza={pizza} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-600">No featured pizzas available</p>
+              </div>
+            )}
           </div>
         )}
-      </div>
 
-      {/* Load More Button (if you want pagination) */}
-      {pizzas.length > 0 && (
-        <div className="text-center pb-8">
-          <button className="bg-white text-orange-600 border-2 border-orange-600 px-8 py-3 rounded-lg hover:bg-orange-50 transition-colors font-semibold">
-            Load More Pizzas
-          </button>
-        </div>
-      )}
+        {/* Main Pizza Grid */}
+        {(activeView === 'all' || activeView === 'category') && (
+          <>
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-400 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Loading pizzas...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <p className="text-red-600">{error}</p>
+              </div>
+            ) : pizzas.length > 0 ? (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    {filters.category ? `${filters.category} Pizzas` : 'All Pizzas'}
+                  </h2>
+                  <p className="text-gray-600">
+                    Showing {pizzas.length} of {pagination.totalPizzas || 0} pizzas
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {pizzas.map((pizza) => (
+                    <PizzaCard key={pizza._id} pizza={pizza} />
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {pagination.totalPages > 1 && (
+                  <div className="flex justify-center items-center mt-8 gap-2">
+                    <button
+                      onClick={() => handlePageChange(pagination.currentPage - 1)}
+                      disabled={!pagination.hasPrevPage}
+                      className="flex items-center gap-1 px-3 py-2 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-orange-100 bg-white bg-opacity-90 transition"
+                    >
+                      <ChevronLeft size={16} />
+                      Previous
+                    </button>
+
+                    <div className="flex gap-1">
+                      {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                        const pageNum = pagination.currentPage <= 3 
+                          ? i + 1 
+                          : pagination.currentPage + i - 2;
+                        
+                        if (pageNum > pagination.totalPages) return null;
+                        
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => handlePageChange(pageNum)}
+                            className={`px-3 py-2 rounded font-semibold transition ${
+                              pageNum === pagination.currentPage
+                                ? 'bg-orange-400 text-white'
+                                : 'border bg-white bg-opacity-90 hover:bg-orange-100'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => handlePageChange(pagination.currentPage + 1)}
+                      disabled={!pagination.hasNextPage}
+                      className="flex items-center gap-1 px-3 py-2 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-orange-100 bg-white bg-opacity-90 transition"
+                    >
+                      Next
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                )}
+                
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-600">No pizzas found matching your criteria</p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };
 
-export default Menu;
+export default PizzaMenu;
