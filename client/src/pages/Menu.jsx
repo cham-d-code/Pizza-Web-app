@@ -1,586 +1,553 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Star, Heart, ShoppingCart, Clock, Flame, Leaf, AlertCircle, RefreshCw, Info, Bell, User } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Filter, Star, Clock, Leaf, Wheat, Heart, ShoppingCart, ChevronLeft, ChevronRight, User, LogOut, Menu, X } from 'lucide-react';
 
-// Add Montserrat font
-const montserratStyle = {
-  fontFamily: '"Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-};
-
-const Menu = () => {
-  const navigate = useNavigate();
+const PizzaMenu = () => {
   const [pizzas, setPizzas] = useState([]);
+  const [featuredPizzas, setFeaturedPizzas] = useState([]);
+  const [categoryStats, setCategoryStats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [debugInfo, setDebugInfo] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [priceRange, setPriceRange] = useState([0, 5000]);
-  const [sortBy, setSortBy] = useState('popular');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Filter states
+  const [filters, setFilters] = useState({
+    category: '',
+    isVegetarian: '',
+    isVegan: '',
+    isGlutenFree: '',
+    minPrice: '',
+    maxPrice: '',
+    search: '',
+    sortBy: 'newest'
+  });
+
   const [showFilters, setShowFilters] = useState(false);
-  const [favorites, setFavorites] = useState(new Set());
-  const [addingToCart, setAddingToCart] = useState(new Set());
-  const [showDebug, setShowDebug] = useState(true); // Always show debug initially
+  const [activeView, setActiveView] = useState('all'); // 'all', 'featured', 'category'
 
-  const handleScroll = (id) => {
-    const section = document.getElementById(id);
-    if (section) section.scrollIntoView({ behavior: 'smooth' });
-  };
+  // API base URL - adjust this to match your backend
+  const API_BASE = 'http://localhost:5000/api';
 
-  // Categories from your backend
-  const categories = ['All', 'Vegetarian', 'Non-Vegetarian', 'Vegan', 'Gluten-Free', 'Spicy', 'Gourmet'];
+  // Mock user state - replace with actual auth logic
+  const [user, setUser] = useState(null);
+  const [addingToCart, setAddingToCart] = useState(false);
+  const [cartMessage, setCartMessage] = useState({ type: '', text: '' });
 
-  // Mock user ID for testing
-  const userId = 'mock-user-id';
-
-  const sortPizzas = useCallback((pizzaList, sortBy) => {
-    switch (sortBy) {
-      case 'price-low':
-        return pizzaList.sort((a, b) => getPizzaPrice(a) - getPizzaPrice(b));
-      case 'price-high':
-        return pizzaList.sort((a, b) => getPizzaPrice(b) - getPizzaPrice(a));
-      case 'rating':
-        return pizzaList.sort((a, b) => {
-          const aRating = typeof a.rating === 'object' ? a.rating.average || 0 : a.rating || 0;
-          const bRating = typeof b.rating === 'object' ? b.rating.average || 0 : b.rating || 0;
-          return bRating - aRating;
-        });
-      case 'name':
-        return pizzaList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      default:
-        return pizzaList.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+  useEffect(() => {
+    // Check if user is logged in
+    const token = localStorage.getItem('token');
+    if (token) {
+      setUser({ id: token, name: 'John Doe', email: 'john@example.com' });
     }
   }, []);
 
-  const fetchPizzas = useCallback(async () => {
-    const baseUrl = 'http://localhost:5000/api/pizzas';
-    const params = new URLSearchParams();
-    try {
-      setLoading(true);
-      setError(null);
-      setDebugInfo(null);
-
-      if (selectedCategory !== 'All') {
-        params.append('category', selectedCategory);
-      }
-      if (searchQuery.trim()) {
-        params.append('search', searchQuery.trim());
-      }
-
-      const url = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
-
-      console.log('🚀 Fetching from URL:', url);
-
-      const response = await fetch(url);
-      console.log('📡 Response status:', response.status);
-      
-      const data = await response.json();
-      console.log('📦 Raw API Response:', data);
-
-      // Enhanced data parsing - try multiple possible structures
-      let pizzaList = [];
-      
-      if (Array.isArray(data)) {
-        pizzaList = data;
-        console.log('✅ Data is direct array');
-      } else if (data.data && Array.isArray(data.data)) {
-        pizzaList = data.data;
-        console.log('✅ Data found in data.data array');
-      } else if (data.pizzas && Array.isArray(data.pizzas)) {
-        pizzaList = data.pizzas;
-        console.log('✅ Data found in data.pizzas array');
-      } else if (data.results && Array.isArray(data.results)) {
-        pizzaList = data.results;
-        console.log('✅ Data found in data.results array');
-      } else {
-        console.log('❌ No array found in response');
-        pizzaList = [];
-      }
-
-      console.log('🍕 Parsed pizza list:', pizzaList);
-      console.log('📊 Pizza count before filtering:', pizzaList.length);
-
-      const filteredPizzas = pizzaList.filter(pizza => {
-        const price = getPizzaPrice(pizza);
-        const passesFilter = price >= priceRange[0] && price <= priceRange[1];
-        if (!passesFilter) {
-          console.log(`🚫 Pizza "${pizza.name}" filtered out - price: ${price}, range: ${priceRange[0]}-${priceRange[1]}`);
-        }
-        return passesFilter;
-      });
-
-      console.log('🔍 Pizza count after filtering:', filteredPizzas.length);
-
-      const sortedPizzas = sortPizzas(filteredPizzas, sortBy);
-      setPizzas(sortedPizzas);
-
-      // Enhanced debug info
-      setDebugInfo({
-        url,
-        responseStatus: response.status,
-        responseOk: response.ok,
-        rawDataType: typeof data,
-        isDataArray: Array.isArray(data),
-        hasDataProperty: !!data.data,
-        hasPizzasProperty: !!data.pizzas,
-        hasResultsProperty: !!data.results,
-        rawDataKeys: typeof data === 'object' ? Object.keys(data) : [],
-        pizzaCount: sortedPizzas.length,
-        originalCount: pizzaList.length,
-        filteredCount: filteredPizzas.length,
-        firstPizza: sortedPizzas[0] || pizzaList[0] || null,
-        fullResponse: data,
-        priceRange: priceRange,
-        searchQuery: searchQuery,
-        selectedCategory: selectedCategory
-      });
-    } catch (err) {
-      console.error('💥 Error:', err);
-      setError(err.message);
-      setDebugInfo({
-        error: err.message,
-        stack: err.stack,
-        url: baseUrl
-      });
-    } finally {
-      setLoading(false);
+  // Add to cart function
+  const addToCart = async (pizza, size, quantity) => {
+    if (!user) {
+      setCartMessage({ type: 'error', text: 'Please sign in to add items to cart' });
+      setTimeout(() => setCartMessage({ type: '', text: '' }), 3000);
+      return;
     }
-  }, [selectedCategory, searchQuery, sortBy, priceRange, sortPizzas]);
 
-  // Helper function to get pizza price with better logic
-  const getPizzaPrice = (pizza) => {
-    if (!pizza) return 0;
-    
-    // Try different price sources
-    if (pizza.sizes && typeof pizza.sizes === 'object') {
-      // If sizes is an array
-      if (Array.isArray(pizza.sizes)) {
-        const mediumSize = pizza.sizes.find(s => 
-          s.size && s.size.toLowerCase().includes('medium')
-        );
-        if (mediumSize && mediumSize.price) return mediumSize.price;
-        // Fall back to first size
-        if (pizza.sizes[0] && pizza.sizes[0].price) return pizza.sizes[0].price;
-      } else {
-        // If sizes is an object
-        const mediumSizeObj = pizza.sizes.Medium || pizza.sizes.medium || pizza.sizes.M;
-        if (mediumSizeObj) {
-          return typeof mediumSizeObj === 'object' ? mediumSizeObj.price || 0 : mediumSizeObj;
-        }
-        // Get first available size
-        const firstSize = Object.values(pizza.sizes)[0];
-        if (firstSize) {
-          return typeof firstSize === 'object' ? firstSize.price || 0 : firstSize;
-        }
-      }
-    }
-    
-    // Fall back to direct price properties
-    return pizza.price || pizza.basePrice || pizza.cost || 0;
-  };
-
-  useEffect(() => {
-    fetchPizzas();
-  }, [fetchPizzas]);
-
-
-  const addToCart = async (pizza, size = 'Medium') => {
-    const cartKey = `${pizza._id}-${size}`;
-    setAddingToCart(prev => new Set(prev).add(cartKey));
-    
+    setAddingToCart(true);
     try {
-      const response = await fetch('http://localhost:5000/api/cart/add', {
+      const response = await fetch(`${API_BASE}/cart/add`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${userId}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.id}`
         },
         body: JSON.stringify({
           pizzaId: pizza._id,
           size: size,
-          quantity: 1
+          quantity: quantity
         })
       });
 
-      if (response.ok) {
-        console.log('Added to cart successfully');
+      const data = await response.json();
+
+      if (data.success) {
+        setCartMessage({ type: 'success', text: 'Added to cart successfully!' });
+      } else {
+        setCartMessage({ type: 'error', text: data.message || 'Failed to add to cart' });
       }
     } catch (error) {
-      console.error('Error adding to cart:', error);
+      console.error('Add to cart error:', error);
+      setCartMessage({ type: 'error', text: 'Failed to add to cart' });
     } finally {
-      setAddingToCart(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(cartKey);
-        return newSet;
+      setAddingToCart(false);
+      setTimeout(() => setCartMessage({ type: '', text: '' }), 3000);
+    }
+  };
+  
+
+  // Fetch all pizzas with current filters
+  const fetchPizzas = async () => {
+    setLoading(true);
+    try {
+      const queryParams = new URLSearchParams();
+      
+      // Add filters
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== '' && value !== null && value !== undefined) {
+          queryParams.append(key, value);
+        }
       });
+
+      const response = await fetch(`${API_BASE}/pizzas?${queryParams}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setPizzas(data.data);
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      setError('Failed to fetch pizzas');
+      console.error('Fetch error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const toggleFavorite = (pizzaId) => {
-    setFavorites(prev => {
-      const newFavorites = new Set(prev);
-      if (newFavorites.has(pizzaId)) {
-        newFavorites.delete(pizzaId);
-      } else {
-        newFavorites.add(pizzaId);
+  // Fetch featured pizzas
+  const fetchFeaturedPizzas = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/pizzas/featured`);
+      const data = await response.json();
+      if (data.success) {
+        setFeaturedPizzas(data.data);
       }
-      return newFavorites;
+    } catch (err) {
+      console.error('Featured pizzas error:', err);
+    }
+  };
+
+  // Fetch category stats
+  const fetchCategoryStats = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/pizzas/categories/stats`);
+      const data = await response.json();
+      if (data.success) {
+        setCategoryStats(data.data);
+      }
+    } catch (err) {
+      console.error('Category stats error:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeView !== 'featured') {
+      fetchPizzas();
+    }
+  }, [filters, activeView]);
+
+  useEffect(() => {
+    fetchPizzas();
+    fetchFeaturedPizzas();
+    fetchCategoryStats();
+  }, []);
+
+  // Handle filter changes
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value,
+      page: 1 // Reset to first page when filters change
+    }));
+  };
+
+  // Handle search
+  const handleSearch = (searchTerm) => {
+    handleFilterChange('search', searchTerm);
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setFilters({
+      category: '',
+      isVegetarian: '',
+      isVegan: '',
+      isGlutenFree: '',
+      minPrice: '',
+      maxPrice: '',
+      search: '',
+      sortBy: 'newest',
+      page: 1,
+      limit: 12
     });
   };
 
+  
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+    window.location.href = '/signin';
+  };
+
+  // Get minimum price from sizes array
+  const getMinPrice = (sizes) => {
+    if (!sizes || sizes.length === 0) return 0;
+    return Math.min(...sizes.map(size => size.price));
+  };
+
+  // Navigation Component (copied from Main.jsx)
+  const Navigation = () => (
+    <nav className="flex justify-between items-center px-6 py-4 bg-white shadow-lg sticky top-0 z-50">
+      <div className="text-orange-500 font-bold text-2xl">PizzaZone</div>
+      <ul className="flex space-x-8 font-medium">
+        <li className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => window.location.href = '/'}>Home</li>
+        <li className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => window.location.href = '/menu'}>Shop</li>
+        <li className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => window.location.href = '/about'}>About Us</li>
+        <li className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => window.location.href = '/contact'}>Contact</li>
+      </ul>
+      <div className="flex space-x-4">
+        <button className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => window.location.href = '/notifications'}><Clock /></button>
+        <button className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => window.location.href = '/cart'}><ShoppingCart /></button>
+        <button className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => window.location.href = '/profile'}><User /></button>
+      </div>
+    </nav>
+  );
+
+  // Pizza Card Component
   const PizzaCard = ({ pizza }) => {
-    const basePrice = getPizzaPrice(pizza);
-    const isLoading = addingToCart.has(`${pizza._id}-Medium`);
-    const isFavorite = favorites.has(pizza._id);
+    const [selectedSize, setSelectedSize] = useState(pizza.sizes && pizza.sizes[0] ? pizza.sizes[0].size : 'M');
+    const [quantity, setQuantity] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const sizeObj = pizza.sizes ? pizza.sizes.find(s => s.size === selectedSize) : null;
+    const totalPrice = sizeObj ? sizeObj.price * quantity : 0;
 
+    const handleAddToCart = async () => {
+      setLoading(true);
+      await addToCart(pizza, selectedSize, quantity);
+      setLoading(false);
+    };
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-300 group max-w-sm mx-auto">
-        {/* Pizza Image */}
-        <div className="relative overflow-hidden">
+      <div className="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group bg-opacity-95 border-2 border-orange-100 relative">
+        {/* Pizza Image with overlay */}
+        <div className="relative">
           <img
-            src={pizza.image || `https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400&h=300&fit=crop&crop=center`}
-            alt={pizza.name || 'Pizza'}
-            className="w-full h-48 object-cover"
-            onError={(e) => {
-              e.target.src = `https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400&h=300&fit=crop&crop=center`;
-            }}
+            src={pizza.image || '/api/placeholder/300/200'}
+            alt={pizza.name}
+            className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300 rounded-t-xl"
+            style={{ filter: 'brightness(0.95)' }}
           />
-          
-          {/* Favorite Button */}
-          <button
-            onClick={() => toggleFavorite(pizza._id)}
-            className="absolute top-3 right-3 bg-white rounded-full p-2 shadow-sm hover:bg-gray-50 transition-colors"
-          >
-            <Heart 
-              className={`h-4 w-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} 
-            />
-          </button>
-
-          {/* Badges */}
-          <div className="absolute bottom-3 left-3 flex gap-2">
+          {/* Dietary icons */}
+          <div className="absolute top-3 right-3 flex flex-col gap-1">
             {pizza.isVegetarian && (
-              <span className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-                <Leaf className="h-3 w-3" />
+              <span className="bg-green-500 text-white p-1 rounded-full shadow">
+                <Leaf size={14} />
               </span>
             )}
-            {pizza.spiceLevel === 'Hot' && (
-              <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-                <Flame className="h-3 w-3" />
+            {pizza.isVegan && (
+              <span className="bg-emerald-500 text-white p-1 rounded-full shadow">
+                <Heart size={14} />
+              </span>
+            )}
+            {pizza.isGlutenFree && (
+              <span className="bg-amber-500 text-white p-1 rounded-full shadow">
+                <Wheat size={14} />
               </span>
             )}
           </div>
+          {pizza.isFeatured && (
+            <div className="absolute top-3 left-3">
+              <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow">
+                Featured
+              </span>
+            </div>
+          )}
         </div>
-
-        {/* Pizza Details */}
-        <div className="p-4">
-          {/* Title */}
-          <h3 className="text-lg font-bold text-gray-900 mb-1 leading-tight">
-            {pizza.name || 'Unnamed Pizza'}
-          </h3>
-
-          {/* Description */}
-          <p className="text-gray-600 text-sm mb-3 line-clamp-2 leading-relaxed">
-            {pizza.description || "Delicious handcrafted pizza made with fresh ingredients"}
+        <div className="p-5">
+          <div className="flex justify-between items-start mb-2">
+            <h3 className="text-xl font-extrabold text-gray-800 group-hover:text-orange-500 transition-colors">
+              {pizza.name}
+            </h3>
+            <div className="flex items-center gap-1">
+              <Star size={16} className="text-yellow-400 fill-current" />
+              <span className="text-base text-gray-600 font-semibold">
+                {pizza.rating?.average?.toFixed(1) || '0.0'}
+              </span>
+            </div>
+          </div>
+          <p className="text-gray-700 text-base mb-2 font-medium">
+            {pizza.description}
           </p>
-
-          {/* Rating and Reviews */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex items-center">
-              <div className="flex items-center bg-orange-50 px-2 py-1 rounded-lg">
-                <Star className="h-3 w-3 fill-orange-400 text-orange-400 mr-1" />
-                <span className="text-sm font-semibold text-orange-600">
-                  {typeof pizza.rating === 'object' ? (pizza.rating.average || 4.5).toFixed(1) : (pizza.rating || 4.5)}
-                </span>
-              </div>
+          {/* Ingredients visually enhanced */}
+          <div className="mb-3">
+            <span className="text-xs text-orange-500 font-bold uppercase tracking-wide">Ingredients:</span>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {(pizza.ingredients && pizza.ingredients.length > 0)
+                ? pizza.ingredients.map((ing, idx) => (
+                    <span key={idx} className="bg-orange-100 text-orange-700 px-2 py-1 rounded-full text-xs font-semibold border border-orange-200 shadow-sm">
+                      {ing}
+                    </span>
+                  ))
+                : <span className="text-xs text-gray-400">Not specified</span>
+              }
             </div>
-            
-            <span className="text-gray-500 text-xs">
-              ({typeof pizza.rating === 'object' ? pizza.rating.count || 0 : pizza.reviews || Math.floor(Math.random() * 100) + 10})
-            </span>
-
-            {pizza.cookTime && (
-              <div className="flex items-center text-gray-500 text-xs ml-auto">
-                <Clock className="h-3 w-3 mr-1" />
-                {pizza.cookTime}
-              </div>
-            )}
           </div>
-
-          {/* Price */}
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <span className="text-2xl font-bold text-gray-900">
-                LKR {basePrice.toLocaleString()}
+          {/* Tags visually enhanced */}
+          <div className="flex flex-wrap gap-1 mb-3">
+            {pizza.tags?.map((tag, index) => (
+              <span key={index} className="bg-gray-200 text-gray-700 px-2 py-1 rounded-full text-xs font-semibold border border-gray-300 shadow-sm">
+                {tag}
               </span>
-              {pizza.sizes && Object.keys(pizza.sizes).length > 1 && (
-                <span className="text-gray-500 text-sm ml-1">onwards</span>
-              )}
-            </div>
+            ))}
           </div>
-
-          {/* Add to Cart Button */}
-          <button
-            onClick={() => addToCart(pizza)}
-            disabled={isLoading || !pizza.available}
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 px-4 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
-          >
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                Adding...
-              </>
-            ) : !pizza.available ? (
-              'Out of Stock'
-            ) : (
-              <>
-                <ShoppingCart className="h-4 w-4" />
-                Add to Cart
-              </>
-            )}
-          </button>
+          {/* Size and Quantity Controls */}
+          {pizza.sizes && pizza.sizes.length > 0 && (
+            <div className="flex gap-2 mb-3">
+              {pizza.sizes.map(size => (
+                <button
+                  key={size.size}
+                  className={`px-3 py-1 rounded-lg bg-slate-800 text-white text-xs font-bold shadow ${selectedSize === size.size ? 'bg-orange-500 scale-105' : 'hover:bg-orange-400'}`}
+                  onClick={() => setSelectedSize(size.size)}
+                >
+                  {size.size}
+                </button>
+              ))}
+            </div>
+          )}
+          {pizza.sizes && pizza.sizes.length > 0 && (
+            <div className="flex items-center gap-2 mb-3">
+              <button className="bg-slate-800 text-white px-3 py-1 rounded-lg text-lg font-bold shadow" onClick={() => setQuantity(q => Math.max(1, q - 1))}>-</button>
+              <span className="text-slate-800 font-extrabold text-lg bg-orange-100 px-3 py-1 rounded-lg shadow">{quantity}</span>
+              <button className="bg-slate-800 text-white px-3 py-1 rounded-lg text-lg font-bold shadow" onClick={() => setQuantity(q => q + 1)}>+</button>
+              <span className="text-orange-500 font-extrabold text-lg ml-2">LKR {totalPrice}.00</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center mt-2">
+            <div className="flex flex-col">
+              <span className="text-xs text-gray-500">Starting from</span>
+              <span className="text-lg font-extrabold text-orange-500">
+                {pizza.sizes ? `LKR ${getMinPrice(pizza.sizes)}.00` : 'N/A'}
+              </span>
+            </div>
+            <button 
+              onClick={handleAddToCart}
+              disabled={loading || addingToCart}
+              className={`bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 shadow-lg transition ${(loading || addingToCart) ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {loading || addingToCart ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <ShoppingCart size={18} />
+                  Add to Cart
+                </>
+              )}
+            </button>
+          </div>
         </div>
+        {/* Decorative corner accent */}
+        <div className="absolute top-0 left-0 w-8 h-8 bg-orange-400 rounded-br-xl shadow-lg"></div>
       </div>
     );
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center" style={montserratStyle}>
-        <div className="bg-white p-8 rounded-lg shadow-md text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto"></div>
-          <p className="text-gray-600 mt-4 font-medium">Loading our delicious pizzas...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center" style={montserratStyle}>
-        <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md">
-          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Connection Error</h2>
-          <p className="text-gray-600 mb-4">
-            Unable to load pizzas. Please check if your backend server is running on port 5000.
-          </p>
-          <p className="text-sm text-red-600 mb-4 font-mono bg-red-50 p-2 rounded">
-            {error}
-          </p>
-          <button
-            onClick={fetchPizzas}
-            className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2 mx-auto"
-          >
-            <RefreshCw className="h-5 w-5" />
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  
 
   return (
-    <div className="min-h-screen bg-gray-50" style={montserratStyle}>
-      {/* Navbar */}
-      <nav className="flex justify-between items-center px-6 py-4 bg-white shadow-lg sticky top-0 z-50">
-        <div className="text-orange-500 font-bold text-2xl">PizzaZone</div>
-        <ul className="flex space-x-8 font-medium">
-          <li className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => navigate('/')}>Home</li>
-          <li className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => navigate('/menu')}>Shop</li>
-          <li className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => handleScroll('about')}>About Us</li>
-          <li className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => handleScroll('contact')}>Contact</li>
-        </ul>
-        <div className="flex space-x-4">
-          <Bell className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => navigate('/notifications')} />
-          <ShoppingCart className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => navigate('/cart')} />
-          <User className="cursor-pointer hover:text-orange-500 transition-colors" onClick={() => navigate('/profile')} />
-        </div>
-      </nav>
-
-      {/* Enhanced Debug Panel */}
-      {debugInfo && showDebug && (
-        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
-          <div className="text-sm">
-            <div className="flex justify-between items-center mb-2">
-              <h4 className="font-bold text-blue-800">🔍 Debug Information</h4>
-              <button
-                onClick={() => setShowDebug(false)}
-                className="text-blue-600 hover:text-blue-800 text-xs"
-              >
-                Hide Debug
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p><strong>API URL:</strong> {debugInfo.url}</p>
-                <p><strong>Response Status:</strong> 
-                  <span className={debugInfo.responseOk ? 'text-green-600' : 'text-red-600'}>
-                    {debugInfo.responseStatus} {debugInfo.responseOk ? '✅' : '❌'}
-                  </span>
-                </p>
-                <p><strong>Raw Data Type:</strong> {debugInfo.rawDataType}</p>
-                <p><strong>Available Keys:</strong> {debugInfo.rawDataKeys?.join(', ') || 'None'}</p>
-              </div>
-              
-              <div>
-                <p><strong>Original Count:</strong> {debugInfo.originalCount}</p>
-                <p><strong>After Filtering:</strong> {debugInfo.filteredCount}</p>
-                <p><strong>Final Count:</strong> {debugInfo.pizzaCount}</p>
-                <p><strong>Price Range:</strong> {debugInfo.priceRange?.join(' - ')}</p>
-              </div>
-            </div>
-
-            {debugInfo.firstPizza && (
-              <details className="mt-2">
-                <summary className="cursor-pointer font-medium text-blue-700">First Pizza Data Structure</summary>
-                <pre className="bg-white p-2 rounded mt-2 text-xs overflow-auto max-h-40">
-                  {JSON.stringify(debugInfo.firstPizza, null, 2)}
-                </pre>
-              </details>
-            )}
-            
-            <details className="mt-2">
-              <summary className="cursor-pointer font-medium text-blue-700">Full API Response</summary>
-              <pre className="bg-white p-2 rounded mt-2 text-xs overflow-auto max-h-40">
-                {JSON.stringify(debugInfo.fullResponse, null, 2)}
-              </pre>
-            </details>
-            
-            <div className="mt-3 flex gap-2 flex-wrap">
-              <button
-                onClick={() => window.open('http://localhost:5000/api/pizzas', '_blank')}
-                className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700"
-              >
-                🌐 Test API
-              </button>
-              <button
-                onClick={fetchPizzas}
-                className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700"
-              >
-                🔄 Retry
-              </button>
-              <button
-                onClick={() => {
-                  setPriceRange([0, 10000]);
-                  setSelectedCategory('All');
-                  setSearchQuery('');
-                }}
-                className="bg-yellow-600 text-white px-3 py-1 rounded text-xs hover:bg-yellow-700"
-              >
-                🗑️ Clear Filters
-              </button>
-            </div>
-          </div>
+    <div className="min-h-screen font-sans relative" style={{ 
+      background: 'linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8)), url("/bg.jpg")',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundAttachment: 'fixed'
+    }}>
+      {/* Toast Message */}
+      {cartMessage.text && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg shadow-lg transition-all duration-500 transform ${
+          cartMessage.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+        } text-white`}>
+          {cartMessage.text}
         </div>
       )}
-
-      {!showDebug && debugInfo && (
-        <div className="bg-blue-100 p-2 mb-4">
-          <button
-            onClick={() => setShowDebug(true)}
-            className="flex items-center gap-2 text-blue-800 hover:text-blue-900 text-sm"
-          >
-            <Info className="h-4 w-4" />
-            Show Debug Info (Found {debugInfo.pizzaCount} pizzas)
-          </button>
-        </div>
-      )}
+      
+      {/* Navigation */}
+      <Navigation />
 
       {/* Header */}
-      <div className="bg-white shadow-sm sticky top-0 z-40">
+      <div className="bg-white bg-opacity-90 shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-800">Our Menu</h1>
-              <p className="text-gray-600 mt-2">Discover our handcrafted pizzas made with love</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500">Found {pizzas.length} pizzas</p>
-              {debugInfo && (
-                <p className="text-xs text-blue-500">
-                  (Original: {debugInfo.originalCount}, Filtered: {debugInfo.filteredCount})
-                </p>
-              )}
-            </div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-6">Our Menu</h1>
+          
+          {/* Search Bar */}
+          <div className="relative mb-6">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search pizzas, ingredients, or tags..."
+              className="w-full pl-10 pr-4 py-3 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
+              value={filters.search}
+              onChange={(e) => handleSearch(e.target.value)}
+            />
           </div>
 
-          {/* Search and Filters */}
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search Bar */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search for pizzas..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* Category Filter */}
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+          {/* View Toggle */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={() => setActiveView('all')}
+              className={`px-4 py-2 rounded font-semibold transition ${
+                activeView === 'all' 
+                  ? 'bg-orange-400 text-white' 
+                  : 'bg-white bg-opacity-90 text-gray-700 hover:bg-orange-100'
+              }`}
             >
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-
-            {/* Sort By */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+              All Pizzas
+            </button>
+            <button
+              onClick={() => setActiveView('featured')}
+              className={`px-4 py-2 rounded font-semibold transition ${
+                activeView === 'featured' 
+                  ? 'bg-orange-400 text-white' 
+                  : 'bg-white bg-opacity-90 text-gray-700 hover:bg-orange-100'
+              }`}
             >
-              <option value="popular">Most Popular</option>
-              <option value="price-low">Price: Low to High</option>
-              <option value="price-high">Price: High to Low</option>
-              <option value="rating">Highest Rated</option>
-              <option value="name">A-Z</option>
-            </select>
+              Featured
+            </button>
+            {categoryStats.map((stat) => (
+              <button
+                key={stat.category}
+                onClick={() => {
+                  setActiveView('category');
+                  handleFilterChange('category', stat.category);
+                }}
+                className={`px-4 py-2 rounded font-semibold transition ${
+                  activeView === 'category' && filters.category === stat.category
+                    ? 'bg-orange-400 text-white' 
+                    : 'bg-white bg-opacity-90 text-gray-700 hover:bg-orange-100'
+                }`}
+              >
+                {stat.category} ({stat.count})
+              </button>
+            ))}
+          </div>
 
-            {/* Filter Toggle */}
+          {/* Filters */}
+          <div className="flex justify-between items-center">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-white bg-opacity-90 hover:bg-orange-100 rounded transition"
             >
-              <Filter className="h-5 w-5" />
+              <Filter size={16} />
               Filters
             </button>
+            
+            <div className="flex items-center gap-4">
+              <select
+                value={filters.sortBy}
+                onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+                className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
+              >
+                <option value="newest">Newest First</option>
+                <option value="name">Name A-Z</option>
+                <option value="price_low">Price: Low to High</option>
+                <option value="price_high">Price: High to Low</option>
+                <option value="rating">Highest Rated</option>
+              </select>
+              
+              {(filters.search || filters.category || filters.isVegetarian || filters.isVegan || filters.isGlutenFree || filters.minPrice || filters.maxPrice) && (
+                <button
+                  onClick={clearFilters}
+                  className="text-orange-500 hover:text-orange-600 font-semibold"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Advanced Filters */}
           {showFilters && (
-            <div className="mt-4 p-4 bg-gray-100 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Price Range */}
+            <div className="mt-4 p-4 bg-white bg-opacity-90 rounded">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price Range: LKR {priceRange[0]} - LKR {priceRange[1]}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category
                   </label>
-                  <div className="flex gap-4">
-                    <input
-                      type="range"
-                      min="0"
-                      max="10000"
-                      step="100"
-                      value={priceRange[0]}
-                      onChange={(e) => setPriceRange([parseInt(e.target.value), priceRange[1]])}
-                      className="flex-1"
-                    />
-                    <input
-                      type="range"
-                      min="0"
-                      max="10000"
-                      step="100"
-                      value={priceRange[1]}
-                      onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value)])}
-                      className="flex-1"
-                    />
+                  <select
+                    value={filters.category}
+                    onChange={(e) => handleFilterChange('category', e.target.value)}
+                    className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  >
+                    <option value="">All Categories</option>
+                    <option value="Vegetarian">Vegetarian</option>
+                    <option value="Non-Vegetarian">Non-Vegetarian</option>
+                    <option value="Vegan">Vegan</option>
+                    <option value="Specialty">Specialty</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Dietary
+                  </label>
+                  <div className="space-y-1">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={filters.isVegetarian === 'true'}
+                        onChange={(e) => handleFilterChange('isVegetarian', e.target.checked ? 'true' : '')}
+                        className="mr-2 accent-orange-400"
+                      />
+                      <span className="text-sm">Vegetarian</span>
+                    </label>
                   </div>
+                </div>
+
+                <div>
+                  <label className="flex items-center mt-6">
+                    <input
+                      type="checkbox"
+                      checked={filters.isVegan === 'true'}
+                      onChange={(e) => handleFilterChange('isVegan', e.target.checked ? 'true' : '')}
+                      className="mr-2 accent-orange-400"
+                    />
+                    <span className="text-sm">Vegan</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="flex items-center mt-6">
+                    <input
+                      type="checkbox"
+                      checked={filters.isGlutenFree === 'true'}
+                      onChange={(e) => handleFilterChange('isGlutenFree', e.target.checked ? 'true' : '')}
+                      className="mr-2 accent-orange-400"
+                    />
+                    <span className="text-sm">Gluten Free</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Min Price
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="$0"
+                    value={filters.minPrice}
+                    onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+                    className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Max Price
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="$50"
+                    value={filters.maxPrice}
+                    onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+                    className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
                 </div>
               </div>
             </div>
@@ -588,50 +555,107 @@ const Menu = () => {
         </div>
       </div>
 
-      {/* Pizza Grid */}
+      {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {pizzas.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="max-w-md mx-auto">
-              <Search className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">No pizzas found</h3>
-              <p className="text-gray-600 mb-4">
-                {debugInfo && debugInfo.originalCount > 0 
-                  ? `Found ${debugInfo.originalCount} pizzas but they were filtered out. Try adjusting your filters.`
-                  : "No pizzas returned from the API. Check your backend data."
-                }
-              </p>
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setSelectedCategory('All');
-                  setPriceRange([0, 10000]);
-                }}
-                className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 transition-colors"
-              >
-                Clear All Filters
-              </button>
+        {/* Featured Pizzas Section */}
+        {activeView === 'featured' && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Featured Pizzas</h2>
+            {/* Hardcoded featured pizzas for demo, replace with API if needed */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {[{
+                name: 'Sausage Delight',
+                image: '/sausage.jpg',
+                description: 'Made with spicy veggie masala, onions, tomato & cheese',
+                ingredients: ['Spicy veggie masala', 'Onions', 'Tomato', 'Cheese'],
+                sizes: [
+                  { size: 'S', price: 1900 },
+                  { size: 'M', price: 2900 },
+                  { size: 'L', price: 3900 },
+                ],
+              },
+              {
+                name: 'Margherita',
+                image: '/margherita.jpg',
+                description: 'Rich tomato sauce base topped with cream cheese, tomato',
+                ingredients: ['Tomato sauce', 'Cream cheese', 'Tomato'],
+                sizes: [
+                  { size: 'S', price: 1500 },
+                  { size: 'M', price: 2500 },
+                  { size: 'L', price: 3500 },
+                ],
+              },
+              {
+                name: 'Chilli Chicken Pizza',
+                image: '/chilli.jpg',
+                description: 'Made with spicy veggie masala, onions, tomato & cheese',
+                ingredients: ['Chicken', 'Spicy veggie masala', 'Onions', 'Tomato', 'Cheese'],
+                sizes: [
+                  { size: 'S', price: 1900 },
+                  { size: 'M', price: 2900 },
+                  { size: 'L', price: 3900 },
+                ],
+              },
+              {
+                name: 'Veggie Masala Pizza',
+                image: '/veggie.jpg',
+                description: 'Made with spicy veggie masala, onions, tomato & cheese',
+                ingredients: ['Spicy veggie masala', 'Onions', 'Tomato', 'Cheese'],
+                sizes: [
+                  { size: 'S', price: 1980 },
+                  { size: 'M', price: 2980 },
+                  { size: 'L', price: 3980 },
+                ],
+              }].map((pizza, idx) => (
+                <PizzaCard key={idx} pizza={pizza} />
+              ))}
             </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {pizzas.map((pizza, index) => (
-              <PizzaCard key={pizza._id || pizza.id || index} pizza={pizza} />
-            ))}
-          </div>
+        )}
+
+        {/* Main Pizza Grid */}
+        {(activeView === 'all' || activeView === 'category') && (
+          <>
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-400 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Loading pizzas...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <p className="text-red-600">{error}</p>
+              </div>
+            ) : pizzas.length > 0 ? (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    {filters.category ? `${filters.category} Pizzas` : 'All Pizzas'}
+                  </h2>
+                  <p className="text-gray-600">
+                    {pizzas.length} Pizza{pizzas.length !== 1 ? 's' : ''} Available
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {pizzas.map((pizza) => (
+                    <PizzaCard key={pizza._id} pizza={{
+                      ...pizza,
+                      ingredients: pizza.ingredients || pizza.featuredIngredients || []
+                    }} />
+                  ))}
+                </div>
+                
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-600">No pizzas found matching your criteria</p>
+              </div>
+            )}
+          </>
         )}
       </div>
-
-      {/* Load More Button */}
-      {pizzas.length > 0 && (
-        <div className="text-center pb-8">
-          <button className="bg-white text-orange-500 border-2 border-orange-500 px-8 py-3 rounded-lg hover:bg-orange-50 transition-colors font-semibold">
-            Load More Pizzas
-          </button>
-        </div>
-      )}
     </div>
   );
 };
 
-export default Menu;
+export default PizzaMenu;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Plus, Minus, ShoppingCart, Tag, MapPin, Phone } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 // Add Montserrat font
 const montserratStyle = {
@@ -21,9 +22,11 @@ const Cart = () => {
   const [error, setError] = useState('');
 
   // Mock user ID for testing - replace with actual authentication
-  const userId = 'mock-user-id';
+  // const userId = 'mock-user-id';
+  const token = localStorage.getItem('token');
+  const navigate = useNavigate();
 
-  // Fetch cart data
+  // All hooks must be called before any return!
   useEffect(() => {
     fetchCart();
   }, []);
@@ -33,7 +36,7 @@ const Cart = () => {
       setLoading(true);
       const response = await fetch('http://localhost:5000/api/cart', {
         headers: {
-          'Authorization': `Bearer ${userId}`, // Replace with actual auth token
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -50,6 +53,14 @@ const Cart = () => {
         });
       } else if (response.status === 404) {
         // Empty cart - state already initialized
+        setCart({
+          items: [],
+          subtotal: 0,
+          tax: 0,
+          deliveryFee: 250,
+          discount: { amount: 0 },
+          total: 250
+        });
       }
     } catch (error) {
       console.error('Error fetching cart:', error);
@@ -66,7 +77,7 @@ const Cart = () => {
       const response = await fetch(`http://localhost:5000/api/cart/update/${itemId}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${userId}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ quantity: newQuantity })
@@ -86,7 +97,7 @@ const Cart = () => {
       const response = await fetch(`http://localhost:5000/api/cart/remove/${itemId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${userId}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -108,7 +119,7 @@ const Cart = () => {
       const response = await fetch('http://localhost:5000/api/cart/discount', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${userId}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ code: discountCode })
@@ -137,7 +148,7 @@ const Cart = () => {
       const response = await fetch('http://localhost:5000/api/cart/discount', {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${userId}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -156,7 +167,7 @@ const Cart = () => {
       const response = await fetch('http://localhost:5000/api/cart/clear', {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${userId}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -168,6 +179,11 @@ const Cart = () => {
       console.error('Error clearing cart:', error);
     }
   };
+
+  // Now do the token check before rendering
+  if (!token) {
+    return <div style={{ padding: 40, textAlign: 'center' }}>Please sign in to view your cart.</div>;
+  }
 
   if (loading) {
     return (
@@ -231,15 +247,15 @@ const Cart = () => {
                           {/* Pizza Image */}
                           <div className="w-20 h-20 bg-gray-200 rounded-lg flex-shrink-0">
                             <img
-                              src={item.pizza?.image || '/api/placeholder/80/80'}
-                              alt={item.pizza?.name}
+                              src={item.image || '/api/placeholder/80/80'}
+                              alt={item.name}
                               className="w-full h-full object-cover rounded-lg"
                             />
                           </div>
 
                           {/* Item Details */}
                           <div className="flex-1">
-                            <h3 className="font-semibold text-gray-800">{item.pizza?.name}</h3>
+                            <h3 className="font-semibold text-gray-800">{item.name}</h3>
                             <p className="text-gray-600 text-sm mt-1">Size: {item.size}</p>
                             
                             {/* Customizations */}
@@ -281,7 +297,7 @@ const Cart = () => {
                               {/* Price and Remove */}
                               <div className="flex items-center gap-4">
                                 <span className="font-semibold text-gray-800">
-                                  LKR {item.itemTotal?.toLocaleString()}
+                                  LKR {item.totalPrice?.toLocaleString()}
                                 </span>
                                 <button
                                   onClick={() => removeItem(item._id)}
@@ -391,6 +407,10 @@ const Cart = () => {
               <button
                 disabled={!cart.items.length}
                 className="w-full bg-orange-600 text-white py-3 rounded-lg font-semibold hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                onClick={() => {
+                  const cartForPayment = { ...cart, total: cart.subtotal };
+                  navigate('/payment-details', { state: { cart: cartForPayment } });
+                }}
               >
                 <MapPin className="h-5 w-5" />
                 Proceed to Checkout

@@ -28,7 +28,7 @@ const getCart = async (req, res) => {
     
     res.json({
       success: true,
-      data: cart
+      cart: cart
     });
     
   } catch (error) {
@@ -115,6 +115,9 @@ const addToCart = async (req, res) => {
       if (cart.items[existingItemIndex].quantity > 10) {
         cart.items[existingItemIndex].quantity = 10;
       }
+      
+      // Update total price for existing item
+      cart.items[existingItemIndex].totalPrice = cart.items[existingItemIndex].price * cart.items[existingItemIndex].quantity;
     } else {
       // Add new item to cart
       const newItem = {
@@ -132,12 +135,19 @@ const addToCart = async (req, res) => {
       cart.items.push(newItem);
     }
     
+    // Calculate totals
+    cart.subtotal = cart.items.reduce((sum, item) => sum + item.totalPrice, 0);
+    cart.tax = Math.round(cart.subtotal * 0.10);
+    cart.deliveryFee = cart.subtotal >= 3000 ? 0 : 250;
+    cart.total = cart.subtotal + cart.tax + cart.deliveryFee - (cart.discount?.amount || 0);
+    cart.itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+    
     await cart.save();
     
     res.json({
       success: true,
       message: 'Item added to cart successfully',
-      data: cart
+      cart: cart
     });
     
   } catch (error) {
@@ -187,12 +197,21 @@ const updateCartItem = async (req, res) => {
     }
     
     cart.items[itemIndex].quantity = parseInt(quantity);
+    cart.items[itemIndex].totalPrice = cart.items[itemIndex].price * parseInt(quantity);
+    
+    // Recalculate totals
+    cart.subtotal = cart.items.reduce((sum, item) => sum + item.totalPrice, 0);
+    cart.tax = Math.round(cart.subtotal * 0.10);
+    cart.deliveryFee = cart.subtotal >= 3000 ? 0 : 250;
+    cart.total = cart.subtotal + cart.tax + cart.deliveryFee - (cart.discount?.amount || 0);
+    cart.itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+    
     await cart.save();
     
     res.json({
       success: true,
       message: 'Cart item updated successfully',
-      data: cart
+      cart: cart
     });
     
   } catch (error) {
@@ -225,12 +244,20 @@ const removeFromCart = async (req, res) => {
     }
     
     cart.items = cart.items.filter(item => item._id.toString() !== itemId);
+    
+    // Recalculate totals
+    cart.subtotal = cart.items.reduce((sum, item) => sum + item.totalPrice, 0);
+    cart.tax = Math.round(cart.subtotal * 0.10);
+    cart.deliveryFee = cart.subtotal >= 3000 ? 0 : 250;
+    cart.total = cart.subtotal + cart.tax + cart.deliveryFee - (cart.discount?.amount || 0);
+    cart.itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+    
     await cart.save();
     
     res.json({
       success: true,
       message: 'Item removed from cart successfully',
-      data: cart
+      cart: cart
     });
     
   } catch (error) {
@@ -262,12 +289,18 @@ const clearCart = async (req, res) => {
     }
     
     cart.items = [];
+    cart.subtotal = 0;
+    cart.tax = 0;
+    cart.deliveryFee = 250;
+    cart.total = 250;
+    cart.itemCount = 0;
+    cart.discount = { amount: 0, code: null, percentage: 0 };
     await cart.save();
     
     res.json({
       success: true,
       message: 'Cart cleared successfully',
-      data: cart
+      cart: cart
     });
     
   } catch (error) {
@@ -311,7 +344,10 @@ const applyDiscount = async (req, res) => {
       'WELCOME10': { percentage: 10, minOrder: 1000 },
       'SAVE20': { percentage: 20, minOrder: 2000 },
       'FIRSTORDER': { amount: 300, minOrder: 1500 },
-      'PIZZA50': { amount: 500, minOrder: 2500 }
+      'PIZZA50': { amount: 500, minOrder: 2500 },
+      'PIZZA10': { percentage: 10, minOrder: 1000 }, // Added from notifications
+      'FREESHIP': { amount: 250, minOrder: 1000 }, // Assume delivery fee is 250
+      'WEEKEND25': { percentage: 25, minOrder: 1500 }, // Added from notifications
     };
     
     const discount = discountCodes[code.toUpperCase()];
@@ -340,12 +376,16 @@ const applyDiscount = async (req, res) => {
     }
     
     cart.discount.code = code.toUpperCase();
+    
+    // Recalculate total with discount
+    cart.total = cart.subtotal + cart.tax + cart.deliveryFee - cart.discount.amount;
+    
     await cart.save();
     
     res.json({
       success: true,
       message: 'Discount applied successfully',
-      data: cart
+      cart: cart
     });
     
   } catch (error) {
@@ -382,12 +422,15 @@ const removeDiscount = async (req, res) => {
       percentage: 0
     };
     
+    // Recalculate total without discount
+    cart.total = cart.subtotal + cart.tax + cart.deliveryFee;
+    
     await cart.save();
     
     res.json({
       success: true,
       message: 'Discount removed successfully',
-      data: cart
+      cart: cart
     });
     
   } catch (error) {

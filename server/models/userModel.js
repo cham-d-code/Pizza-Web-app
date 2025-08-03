@@ -113,6 +113,11 @@ const userSchema = new mongoose.Schema({
     },
     allergens: [String],
     dietaryRestrictions: [String]
+  },
+
+  profileImage: {
+    type: String,
+    default: ''
   }
 }, {
   timestamps: true // Adds createdAt and updatedAt automatically

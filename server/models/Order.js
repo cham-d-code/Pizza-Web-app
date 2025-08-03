@@ -1,4 +1,6 @@
 // models/Order.js
+
+console.log('Order model loaded');
 const mongoose = require('mongoose');
 
 const orderItemSchema = new mongoose.Schema({
@@ -223,14 +225,19 @@ const orderSchema = new mongoose.Schema({
 // Generate order number before saving
 orderSchema.pre('save', async function(next) {
   if (this.isNew) {
+    console.log('Generating order number...');
     const count = await mongoose.model('Order').countDocuments();
     this.orderNumber = `PZ${String(count + 1).padStart(6, '0')}`;
     
-    // Add initial status to history
+    // Add initial status to history with appropriate note
+    const note = this.status === 'Delivered' 
+      ? 'Order placed and auto-delivered for review access' 
+      : 'Order placed successfully';
+    
     this.statusHistory.push({
       status: this.status,
       timestamp: new Date(),
-      note: 'Order placed successfully'
+      note: note
     });
     
     // Set estimated delivery time (45 minutes from now)

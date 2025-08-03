@@ -149,6 +149,8 @@ const createCashOnDeliveryOrder = async (req, res) => {
       shippingAddress,
       paymentMethod,
       deliveryType,
+      status: 'Delivered', // Auto-mark as delivered for immediate review access
+      actualDeliveryTime: new Date(), // Set actual delivery time to now
       paymentStatus: 'Pending', // COD orders start as pending
       notes: {
         customerNotes: customerNotes || '',
@@ -460,9 +462,72 @@ const createOrder = async (req, res) => {
       return createCashOnDeliveryOrder(req, res);
     }
 
-    // ... rest of the original createOrder function for other payment methods
-    // (Card, Digital Wallet processing)
-    
+    // --- BEGIN: Card/Digital Wallet Order Logic ---
+    // Get user's cart
+    const cart = await Cart.findOne({ user: userId, isActive: true }).populate('items.pizza');
+    if (!cart || cart.items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cart is empty'
+      });
+    }
+
+    // Get shipping address from request body
+    const shippingAddress = req.body.shippingAddress || {};
+
+    // Generate order number manually (since pre-save hook isn't running)
+    const count = await Order.countDocuments();
+    const orderNumber = `PZ${String(count + 1).padStart(6, '0')}`;
+    const estimatedDeliveryTime = new Date(Date.now() + 45 * 60 * 1000); // 45 minutes from now
+
+    // Create the order
+    const order = new Order({
+      user: userId,
+      orderNumber,
+      estimatedDeliveryTime,
+      items: cart.items.map(item => ({
+        pizza: item.pizza,
+        name: item.name,
+        image: item.image,
+        size: item.size,
+        price: item.price,
+        quantity: item.quantity,
+        totalPrice: item.totalPrice,
+        customizations: item.customizations
+      })),
+      subtotal: cart.subtotal,
+      tax: cart.tax,
+      deliveryFee: cart.deliveryFee,
+      discount: cart.discount,
+      total: cart.total,
+      shippingAddress,
+      paymentMethod,
+      deliveryType,
+      status: 'Delivered', // Auto-mark as delivered for immediate review access
+      actualDeliveryTime: new Date(), // Set actual delivery time to now
+      paymentStatus: 'Completed', // Card/Digital Wallet: mark as paid
+      notes: { customerNotes: customerNotes || '' }
+    });
+
+    await order.save();
+
+    // Clear the cart after successful order creation
+    cart.items = [];
+    cart.isActive = false;
+    await cart.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Order created successfully',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        total: order.total,
+        paymentMethod: order.paymentMethod
+      }
+    });
+    // --- END: Card/Digital Wallet Order Logic ---
+
   } catch (error) {
     console.error('Create order error:', error);
     res.status(500).json({
