@@ -9,6 +9,8 @@ import ResetPassword from './pages/ResetPassword';
 import ForgotPasswordOtpVerification from './pages/ForgotPasswordOtpVerification';
 import Cart from './pages/Cart';
 import Menu from './pages/Menu';
+import PaymentDetails from './pages/PaymentDetails';
+import Profile from './pages/Profile';
 
 function App() {
   return (
@@ -21,7 +23,9 @@ function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/forgot-password-otp" element={<ForgotPasswordOtpVerification />} />
         <Route path="/cart" element={<Cart />} />
-        <Route path="/Menu" element={<Menu />} />
+        <Route path="/menu" element={<Menu />} />
+        <Route path="/payment-details" element={<PaymentDetails />} />
+        <Route path="/profile" element={<Profile />} />
         
         {/* Optional: Default or Home page */}
         {/* <Route path="/" element={<Home />} /> */}
