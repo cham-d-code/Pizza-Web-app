@@ -223,66 +223,76 @@ const ProfilePage = () => {
         <div className="space-y-8">
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <h3 className="text-xl font-bold mb-6 text-gray-800">Past Orders</h3>
-            <ul>
-              {orders.map(order => (
-                <li key={order._id} className="mb-4 border-b pb-4">
-                  <div>
-                    <span className="font-semibold">Order #{order._id}</span> - {new Date(order.createdAt).toLocaleDateString()}
-                    <span className={`ml-2 px-2 py-1 text-xs rounded ${
-                      order.status === 'Delivered' ? 'bg-green-100 text-green-800' : 
-                      order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {order.status}
-                    </span>
-                  </div>
-                  <div>
-                    {order.items.map(item => (
-                      <span key={item._id}>{item.pizza.name} x{item.quantity} </span>
-                    ))}
-                  </div>
-                  {/* Show review form if not reviewed AND order is delivered */}
-                  {(!order.review || !order.review.rating) && order.status === 'Delivered' ? (
-                    <div className="mt-2">
-                      <div className="flex items-center space-x-2">
-                        {[1,2,3,4,5].map(star => (
-                          <Star
-                            key={star}
-                            className={`w-6 h-6 cursor-pointer ${userRating >= star ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-                            onClick={() => setUserRating(star)}
-                          />
-                        ))}
+            {orders && orders.length > 0 ? (
+              <ul>
+                {orders.map(order => (
+                  <li key={order._id} className="mb-4 border-b pb-4">
+                    <div>
+                      <span className="font-semibold">Order #{order._id}</span> - {new Date(order.createdAt || Date.now()).toLocaleDateString()}
+                      <span className={`ml-2 px-2 py-1 text-xs rounded ${
+                        order.status === 'Delivered' ? 'bg-green-100 text-green-800' : 
+                        order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {order.status || 'Unknown'}
+                      </span>
+                    </div>
+                    <div>
+                      {order.items && order.items.map(item => (
+                        <span key={item._id}>
+                          {item.pizza?.name || 'Unknown Pizza'} x{item.quantity || 1} 
+                        </span>
+                      ))}
+                    </div>
+                    {/* Show review form if not reviewed AND order is delivered */}
+                    {(!order.review || !order.review.rating) && order.status === 'Delivered' ? (
+                      <div className="mt-2">
+                        <div className="flex items-center space-x-2">
+                          {[1,2,3,4,5].map(star => (
+                            <Star
+                              key={star}
+                              className={`w-6 h-6 cursor-pointer ${userRating >= star ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                              onClick={() => setUserRating(star)}
+                            />
+                          ))}
+                        </div>
+                        <textarea
+                          value={feedback}
+                          onChange={e => setFeedback(e.target.value)}
+                          placeholder="Add your feedback"
+                          className="w-full h-16 p-2 border rounded mt-2"
+                        />
+                        <button
+                          className="mt-2 px-4 py-2 bg-orange-500 text-white rounded"
+                          onClick={() => {
+                            console.log('Submitting review for order:', order._id);
+                            console.log('Order status:', order.status);
+                            handleRatingSubmit(order._id);
+                          }}
+                          disabled={submitting}
+                        >
+                          Submit Review
+                        </button>
                       </div>
-                      <textarea
-                        value={feedback}
-                        onChange={e => setFeedback(e.target.value)}
-                        placeholder="Add your feedback"
-                        className="w-full h-16 p-2 border rounded mt-2"
-                      />
-                      <button
-                        className="mt-2 px-4 py-2 bg-orange-500 text-white rounded"
-                        onClick={() => {
-                          console.log('Submitting review for order:', order._id);
-                          console.log('Order status:', order.status);
-                          handleRatingSubmit(order._id);
-                        }}
-                        disabled={submitting}
-                      >
-                        Submit Review
-                      </button>
-                    </div>
-                  ) : order.status === 'Delivered' ? (
-                    <div className="mt-2 text-green-600">
-                      You rated: {order.review.rating} stars - "{order.review.comment}"
-                    </div>
-                  ) : (
-                    <div className="mt-2 text-gray-500 text-sm">
-                      Review will be available when order is delivered
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+                    ) : order.status === 'Delivered' ? (
+                      <div className="mt-2 text-green-600">
+                        You rated: {order.review?.rating || 0} stars - "{order.review?.comment || ''}"
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-gray-500 text-sm">
+                        Review will be available when order is delivered
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                <ShoppingCart className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <p>No orders found</p>
+                <p className="text-sm">Your order history will appear here</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
