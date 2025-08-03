@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Trash2, Plus, Minus, ShoppingCart, Tag, MapPin, Phone } from 'lucide-react';
 
 // Add Montserrat font
@@ -7,6 +8,7 @@ const montserratStyle = {
 };
 
 const Cart = () => {
+  const navigate = useNavigate();
   const [cart, setCart] = useState({
     items: [],
     subtotal: 0,
@@ -389,6 +391,7 @@ const Cart = () => {
 
               {/* Checkout Button */}
               <button
+                onClick={() => navigate('/payment-details')}
                 disabled={!cart.items.length}
                 className="w-full bg-orange-600 text-white py-3 rounded-lg font-semibold hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >

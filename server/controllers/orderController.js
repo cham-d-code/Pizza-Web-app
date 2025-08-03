@@ -460,8 +460,143 @@ const createOrder = async (req, res) => {
       return createCashOnDeliveryOrder(req, res);
     }
 
-    // ... rest of the original createOrder function for other payment methods
-    // (Card, Digital Wallet processing)
+    // Handle Card and Digital Wallet payments
+    // Get user's cart
+    const cart = await Cart.findOne({ 
+      user: userId, 
+      isActive: true 
+    }).populate('items.pizza');
+
+    if (!cart || cart.items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cart is empty'
+      });
+    }
+
+    // Get shipping address
+    let shippingAddress;
+    
+    if (shippingAddressId) {
+      // Use existing saved address
+      const address = await Address.findOne({
+        _id: shippingAddressId,
+        user: userId
+      });
+      
+      if (!address) {
+        return res.status(404).json({
+          success: false,
+          message: 'Shipping address not found'
+        });
+      }
+      
+      shippingAddress = {
+        firstName: address.firstName,
+        lastName: address.lastName,
+        phone: address.phone,
+        address: address.address,
+        city: address.city,
+        district: address.district,
+        province: address.province,
+        postalCode: address.postalCode,
+        deliveryInstructions: address.deliveryInstructions
+      };
+    } else if (newAddress) {
+      // Use new address provided in request
+      const { firstName, lastName, phone, address, city, district, province, postalCode, deliveryInstructions } = newAddress;
+      
+      // Validate required fields
+      if (!firstName || !lastName || !phone || !address || !city || !district || !province) {
+        return res.status(400).json({
+          success: false,
+          message: 'All address fields are required'
+        });
+      }
+      
+      shippingAddress = {
+        firstName,
+        lastName,
+        phone,
+        address,
+        city,
+        district,
+        province,
+        postalCode,
+        deliveryInstructions
+      };
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Shipping address is required'
+      });
+    }
+
+    // Prepare order items from cart
+    const orderItems = cart.items.map(item => ({
+      pizza: item.pizza._id,
+      name: item.pizza.name,
+      image: item.pizza.image,
+      size: item.size,
+      price: item.price,
+      quantity: item.quantity,
+      totalPrice: item.totalPrice,
+      customizations: item.customizations
+    }));
+
+    // For Card and Digital Wallet, we'll assume payment is processed successfully
+    // In a real app, you would integrate with payment gateways here
+    const paymentDetails = {
+      transactionId: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      paymentGateway: paymentMethod === 'Card' ? 'Stripe' : 'PayPal',
+      paidAt: new Date()
+    };
+
+    // Create order
+    const newOrder = new Order({
+      user: userId,
+      items: orderItems,
+      subtotal: cart.subtotal,
+      tax: cart.tax,
+      deliveryFee: cart.deliveryFee,
+      discount: cart.discount,
+      total: cart.total,
+      shippingAddress,
+      paymentMethod,
+      paymentStatus: 'Completed', // Assume payment is successful for now
+      paymentDetails,
+      deliveryType,
+      status: 'Confirmed',
+      notes: {
+        customerNotes: customerNotes || ''
+      }
+    });
+
+    const savedOrder = await newOrder.save();
+
+    // Clear the cart after successful order
+    await Cart.findOneAndUpdate(
+      { user: userId, isActive: true },
+      { 
+        $set: { 
+          items: [], 
+          subtotal: 0, 
+          tax: 0, 
+          total: 250, // Reset to delivery fee only
+          discount: { amount: 0 },
+          isActive: false 
+        } 
+      }
+    );
+
+    // Populate the order for response
+    await savedOrder.populate('items.pizza');
+
+    res.status(201).json({
+      success: true,
+      message: 'Order created successfully',
+      order: savedOrder
+    });
     
   } catch (error) {
     console.error('Create order error:', error);
