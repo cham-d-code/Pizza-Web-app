@@ -9,6 +9,7 @@ import ResetPassword from './pages/ResetPassword';
 import ForgotPasswordOtpVerification from './pages/ForgotPasswordOtpVerification';
 import Cart from './pages/Cart';
 import Menu from './pages/Menu';
+import CursorAgentDemo from './pages/CursorAgentDemo';
 
 function App() {
   return (
@@ -22,6 +23,8 @@ function App() {
         <Route path="/forgot-password-otp" element={<ForgotPasswordOtpVerification />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/Menu" element={<Menu />} />
+        <Route path="/cursor-agent" element={<CursorAgentDemo />} />
+        <Route path="/" element={<CursorAgentDemo />} />
         
         {/* Optional: Default or Home page */}
         {/* <Route path="/" element={<Home />} /> */}
