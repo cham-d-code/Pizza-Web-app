@@ -14,7 +14,6 @@ import Store from './pages/Store';
 import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
 import PaymentDetails from './pages/PaymentDetails';
-import ContactUs from './pages/ContactUs';
 
 function App() {
   return (
@@ -33,7 +32,6 @@ function App() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/payment-details" element={<PaymentDetails />} />
-        <Route path="/contact-us" element={<ContactUs />} />
 
 
         <Route path="/" element={<Main />} />
