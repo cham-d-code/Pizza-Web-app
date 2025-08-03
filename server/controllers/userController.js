@@ -1,3 +1,15 @@
+// Helper to normalize phone numbers to international format
+const normalizePhone = (phone) => {
+  if (!phone) return undefined;
+  let p = phone.trim();
+  // Remove spaces and dashes
+  p = p.replace(/[-\s]/g, '');
+  // Remove leading zero if present
+  if (p.startsWith('0')) p = p.slice(1);
+  // Add country code if missing (assuming Sri Lanka +94)
+  if (!p.startsWith('+')) p = '+94' + p;
+  return p;
+};
 const User = require('../models/userModel');
 const asyncHandler = require('express-async-handler');
 const jwt = require('jsonwebtoken');
@@ -89,6 +101,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   const contact = email || phone;
+  const normalizedPhone = normalizePhone(phone);
 
   // Check if user already exists (and is not temporary)
   const existingUser = await User.findOne({
@@ -104,6 +117,8 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
+  console.log('Registering user. Raw password:', password);
+  console.log('Registering user. Hashed password:', hashedPassword);
   
   // If user exists but is temporary (created during OTP verification), update it
   let user;
@@ -114,12 +129,13 @@ const registerUser = asyncHandler(async (req, res) => {
     user.isTemporary = false;
     user.resetOtp = undefined;
     user.otpExpiry = undefined;
+    user.phone = normalizedPhone;
     await user.save();
   } else {
     user = await User.create({ 
       name, 
       email, 
-      phone, 
+      phone: normalizedPhone,
       password: hashedPassword,
       isTemporary: false 
     });
@@ -145,6 +161,8 @@ const registerUser = asyncHandler(async (req, res) => {
 // POST /api/users/login
 const loginUser = asyncHandler(async (req, res) => {
   const { email, phone, password } = req.body;
+  const normalizedPhone = normalizePhone(phone);
+  console.log('Login attempt:', { email, phone, password });
   
   if (!password || (!email && !phone)) {
     res.status(400);
@@ -152,9 +170,10 @@ const loginUser = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findOne({ 
-    $or: [{ email }, { phone }],
+    $or: [email ? { email } : null, normalizedPhone ? { phone: normalizedPhone } : null].filter(Boolean),
     isTemporary: { $ne: true } // Don't allow login for temporary users
   });
+  console.log('User found:', user);
   
   if (!user) {
     res.status(401);
@@ -162,6 +181,7 @@ const loginUser = asyncHandler(async (req, res) => {
   }
   
   const match = await bcrypt.compare(password, user.password);
+  console.log('Password match:', match);
   if (!match) {
     res.status(401);
     throw new Error('Invalid credentials');
@@ -382,6 +402,34 @@ const resetPassword = asyncHandler(async (req, res) => {
   res.status(200).json({ message: 'Password reset successfully' });
 });
 
+// GET /api/users/profile
+const getUserProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id).select('-password');
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+  res.json(user);
+});
+
+// PUT /api/users/profile
+const updateUserProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+  user.name = req.body.name || user.name;
+  user.profileImage = req.body.profileImage || user.profileImage;
+  await user.save();
+  res.json({
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    profileImage: user.profileImage,
+  });
+});
+
 module.exports = {
   sendOtp,
   registerUser,
@@ -389,5 +437,7 @@ module.exports = {
   sendResetOtp,
   verifyOtp,
   verifyResetOtp,
-  resetPassword
+  resetPassword,
+  getUserProfile,
+  updateUserProfile,
 };

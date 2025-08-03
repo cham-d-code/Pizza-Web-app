@@ -20,6 +20,9 @@ const mockAuth = (req, res, next) => {
 
 router.use(mockAuth);
 
+// Add POST / route for RESTful order creation
+router.post('/', createOrder);
+
 // @route   POST /api/orders/create
 // @desc    Create new order from cart
 // @access  Private

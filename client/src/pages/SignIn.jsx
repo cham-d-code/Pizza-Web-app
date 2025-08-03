@@ -17,10 +17,18 @@ const SignIn = () => {
     }
 
     try {
+      // Determine if input is email or phone
+      let bodyObj = { password };
+      if (/^\+?\d{10,}$/.test(emailOrPhone)) {
+        bodyObj.phone = emailOrPhone;
+      } else {
+        bodyObj.email = emailOrPhone;
+      }
+
       const response = await fetch('/api/users/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact: emailOrPhone, password }),
+        body: JSON.stringify(bodyObj),
       });
 
       const data = await response.json();
